@@ -1,0 +1,2 @@
+Average coverage
+Fraction of reference covered

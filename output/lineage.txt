@@ -1,0 +1,27 @@
+DATASET_COLORSTRIP
+SEPARATOR TAB
+DATASET_LABEL	Lineage
+COLOR	#ff0000
+LEGEND_COLORS	#2E91E5	#2E91E5	#2E91E5	#2E91E5	#2E91E5	#2E91E5	#2E91E5	#2E91E5	#2E91E5	#2E91E5	#2E91E5	#2E91E5	#2E91E5	#2E91E5	#2E91E5	#2E91E5	#E15F99	#1CA71C	#FB0D0D	#FB0D0D	#FB0D0D	#FB0D0D	#FB0D0D	#FB0D0D	#FB0D0D	#FB0D0D	#FB0D0D	#FB0D0D	#FB0D0D	#FB0D0D	#FB0D0D	#FB0D0D	#FB0D0D	#FB0D0D	#DA16FF	#222A2A	#B68100	#B68100	#B68100	#B68100	#B68100	#750D86	#750D86	#750D86	#750D86	#750D86	#750D86	#750D86	#EB663B	#EB663B	#511CFB	#511CFB	#511CFB	#511CFB	#511CFB	#EB663B	#00A08B	#00A08B	#EB663B	#EB663B	#EB663B	#FB00D1	#FB00D1	#FC0080	#EB663B	#FC0080	#B2828D	#B2828D	#B2828D	#B2828D	#B2828D	#B2828D	#B2828D	#B2828D	#B2828D	#B2828D	#EB663B	#6C7C32	#EB663B	#EB663B	#EB663B	#EB663B	#EB663B	#EB663B	#778AAE	#EB663B	#EB663B	#EB663B	#EB663B	#862A16	#EB663B	#EB663B	#EB663B	#A777F1	#A777F1	#A777F1	#A777F1	#A777F1	#620042	#620042	#1616A7	#1616A7	#1616A7	#1616A7	#1616A7	#1616A7	#1616A7	#1616A7	#1616A7	#DA60CA	#DA60CA	#DA60CA	#DA60CA	#DA60CA	#DA60CA	#DA60CA	#DA60CA	#DA60CA	#DA60CA	#DA60CA	#DA60CA	#DA60CA	#6C4516	#0D2A63	#AF0038	#00FE35
+LEGEND_LABELS	La1	La1.1	La1.2	La1.2.BCG	La1.3	La1.4	La1.5	La1.6	La1.7	La1.7.1	La1.7.X-unk4	La1.7.X-unk5	La1.8	La1.8.1	La1.8.2	La1.8.X-unk6	La2	La3	lineage1	lineage1.1	lineage1.1.1	lineage1.1.1.1	lineage1.1.2	lineage1.1.3	lineage1.1.3.1	lineage1.1.3.2	lineage1.1.3.3	lineage1.2.1	lineage1.2.1.1	lineage1.2.1.2	lineage1.2.1.2.1	lineage1.2.2	lineage1.2.2.1	lineage1.2.2.2	lineage2	lineage2.1	lineage2.2	lineage2.2.1	lineage2.2.1.1	lineage2.2.1.2	lineage2.2.2	lineage3	lineage3.1	lineage3.1.1	lineage3.1.2	lineage3.1.2.1	lineage3.1.2.2	lineage3.1.3	lineage4	lineage4.1	lineage4.1.1	lineage4.1.1.1	lineage4.1.1.2	lineage4.1.1.3	lineage4.1.1.3.1	lineage4.1.2	lineage4.1.2.1	lineage4.1.2.1.1	lineage4.1.3	lineage4.1.4	lineage4.2	lineage4.2.1	lineage4.2.1.1	lineage4.2.2	lineage4.2.2.1	lineage4.2.2.2	lineage4.3	lineage4.3.1	lineage4.3.1.1	lineage4.3.2	lineage4.3.2.1	lineage4.3.3	lineage4.3.4	lineage4.3.4.1	lineage4.3.4.2	lineage4.3.4.2.1	lineage4.4	lineage4.4.1	lineage4.4.1.1	lineage4.4.1.1.1	lineage4.4.1.2	lineage4.4.2	lineage4.5	lineage4.6	lineage4.6.1	lineage4.6.1.1	lineage4.6.1.2	lineage4.6.2	lineage4.6.2.1	lineage4.6.2.2	lineage4.6.3	lineage4.6.4	lineage4.6.5	lineage4.7	lineage4.8	lineage4.8.1	lineage4.8.2	lineage4.8.3	lineage4.9	lineage4.9.1	lineage5	lineage5.1	lineage5.1.1	lineage5.1.2	lineage5.1.3	lineage5.1.4	lineage5.1.5	lineage5.2	lineage5.3	lineage6	lineage6.1	lineage6.1.1	lineage6.1.2	lineage6.1.3	lineage6.2	lineage6.2.1	lineage6.2.2	lineage6.2.3	lineage6.3	lineage6.3.1	lineage6.3.2	lineage6.3.3	lineage7	lineage8	lineage9	M.canetti
+
+DATA
+YA00585705	#FB0D0D	lineage1.2.2.2
+YA00585711	#B2828D	lineage4.3.3
+YA00585699	#B68100	lineage2.2.1
+YA00585702	#B68100	lineage2.2.1
+YA00585717	#FB0D0D	lineage1.1.3.1
+YA00585715	#B68100	lineage2.2.1
+YA00585701	#B68100	lineage2.2.1
+YA00585728	#511CFB	lineage4.1.1
+YA00585740	#FB0D0D	lineage1.1.3.1
+YA00585742	#511CFB	lineage4.1.1
+YA00585733	#B68100	lineage2.2.1
+YA00585727	#511CFB	lineage4.1.1
+YA00585736	#B68100	lineage2.2.1
+YA00585720	#B68100	lineage2.2.1
+YA00585735	#B68100	lineage2.2.1
+YA00585709	#B68100	lineage2.2.1
+YA00585731	#620042	lineage4.9
+YA00585730	#620042	lineage4.9
+YA00585723	#620042	lineage4.9

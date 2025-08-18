@@ -1,0 +1,16 @@
+Region
+Name
+gene
+locus_tag
+gene_synonym
+Target region length
+Read count
+Base count
+GC %
+Min coverage
+Max coverage
+Mean coverage
+Median coverage
+Zero coverage bases
+Mean coverage (excluding zero coverage)
+Median coverage (excluding zero coverage)

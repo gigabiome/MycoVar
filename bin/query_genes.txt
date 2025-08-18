@@ -1,0 +1,36 @@
+ahpC
+ahpC promoter
+atpE
+ddn
+eis
+eis promoter
+embA
+embB
+embC
+ethA
+gid
+gyrA
+gyrB
+inhA
+inhA promoter
+iniA
+iniC
+intergenic atpB_atpE
+katG
+mmpL5
+mmpS5
+mshA
+ndh
+pepQ
+pncA
+pncA promoter
+rplC
+rpoB
+rpoC
+rpsA
+rpsL
+rrl
+rrs
+Rv0678
+thyA
+tlyA

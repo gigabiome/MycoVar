@@ -1,0 +1,10 @@
+Amino acid change
+Coding region change
+Reference Position
+Reference
+Allele
+Count
+Coverage
+Frequency
+Average quality
+Type
