@@ -40,24 +40,7 @@ git clone https://github.com/your-username/MycoVar.git
 cd MycoVar
 ```
 
-### 2) Create an environment & install dependencies
-Use your preferred environment manager. Example with **conda**:
-```bash
-conda create -n mycovar python=3.10 -y
-conda activate mycovar
-pip install -r requirements.txt
-```
-
-Or with **venv**:
-```bash
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-> If `requirements.txt` isn’t provided yet, see **Dependencies** below for a suggested list.
-
-### 3) Launch Jupyter and run an analysis
+### 2) Launch Jupyter and run an analysis
 ```bash
 jupyter notebook
 ```
@@ -73,22 +56,16 @@ All outputs are written to the **`output/`** directory.
 
 ## 📥 Inputs
 
-Place the required input files in `input/`. Typical inputs may include:
-- Variant calls (e.g., VCF), consensus FASTA, or tabular variant matrices
-- Sample metadata (optional; CSV/TSV) for labeling/stratification
-
-Refer to the first cell(s) of each notebook for the exact expected filenames/columns and any configurable parameters (paths, thresholds, marker sets).
+Place the required input files in `input/`.
 
 ---
 
 ## 📤 Outputs
 
 Each notebook writes its results to `output/`, typically including:
-- **Phylo**: tree files (e.g., Newick), summary tables, and optional figures  
-- **Lineage**: per-sample lineage calls and confidence metrics  
+- **Phylo**: tree files, summary tables, and optional figures  
+- **Lineage**: per-sample lineage calls  
 - **Resisto**: per-sample resistotype predictions and supporting evidence tables
-
-File names and formats are documented in the notebooks’ final cells.
 
 ---
 
@@ -128,59 +105,11 @@ scikit-bio
 ete3
 ```
 
-> ⚠️ Only include libraries you actually use. If your notebooks rely on additional tools (e.g., plotly, seaborn), add them here.
-
----
-
-## 🧪 Reproducibility
-
-- Run notebooks from the repository root to ensure relative paths resolve.  
-- Consider exporting executed notebooks to HTML for archival:
-  ```bash
-  jupyter nbconvert --to html --execute phylo.ipynb
-  ```
-- For strict reproducibility, pin package versions in `requirements.txt` and/or export a lock file:
-  ```bash
-  pip freeze > requirements.txt
-  ```
-
----
-
-## 🛠️ Troubleshooting
-
-- **`ModuleNotFoundError: No module named 'functions'`**  
-  Run Jupyter from the repo root (`MycoVar/`) or add the repo root to `PYTHONPATH`.
-
-- **Databases not found**  
-  Ensure `bin/` is present and paths in the notebook configuration cells match the filenames.
-
-- **Permission errors writing outputs**  
-  Verify you have write permissions to `output/` and that the directory exists.
-
----
-
-## 🤝 Contributing
-
-Contributions and suggestions are welcome!
-
-1. Fork the repository  
-2. Create a feature branch: `git checkout -b feature-name`  
-3. Commit your changes: `git commit -m "Add feature"`  
-4. Push to your fork and open a Pull Request
-
-Please keep code style consistent and add/update notebook cells that document new parameters or outputs.
-
----
-
-## 📜 License
-
-This project is licensed under the **MIT License**. See `LICENSE` for details.
-
 ---
 
 ## 🙏 Acknowledgements
 
-- Developed for research on *Mycobacterium tuberculosis* phylogeny, lineage, and resistance.  
+- Developed for research on *Mycobacterium tuberculosis* phylogeny, lineage, and resistance at Centre For Tuberculosis NICD 
 - Uses curated databases included in the `bin/` directory.  
 - Thanks to the open-source bioinformatics community for foundational libraries.
 
