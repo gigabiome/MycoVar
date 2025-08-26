@@ -54,19 +54,110 @@ def setupInput(input_dir):
 def setupOutput(output_dir,analysis_type):
     import os
     import shutil
-    path = output_dir + analysis_type
-    if os.path.exists(path):
-        shutil.rmtree(path)
-    os.makedirs(path)
     
-    if analysis_type == 'resisto':
-        os.makedirs(path+'/sample_resisto/')
-        return(print('✅ Resisto output directories created\n'))
-    elif analysis_type == 'phylo':
-        os.makedirs(path+'/iTol/')
-        return(print('✅ Phylo output directories created\n'))
+    if analysis_type in ['resisto','phylo','lineage']:
+        path = output_dir + analysis_type
+        if os.path.exists(path):
+            shutil.rmtree(path)
+        os.makedirs(path)
+
+        if analysis_type == 'resisto':
+            os.makedirs(path+'/sample_resisto/')
+            return(print('✅ Resisto output directories created\n'))
+        elif analysis_type == 'phylo':
+            os.makedirs(path+'/iTol/')
+            return(print('✅ Phylo output directories created\n'))
+        elif analysis_type == 'lineage':
+            return(print('✅ Lineage output directory created\n'))
+    else:
+        return(print("❌ analysis should be either resisto, phylo or lineage"))
+               
+               
+############ LINEAGE ############ 
+
+def setupLineage(BIN):
+    import pandas as pd
+    import plotly.express as px
+    df_lin = pd.read_csv(BIN+'lineages.bed',sep='\t',index_col=1)
+    DB_LIN = df_lin.drop(columns=['Chromosome','End'])
+    colors = px.colors.qualitative.Dark24
+    colors.append(px.colors.qualitative.Light24[1])
+    colors = dict(zip(DB_LIN['Lineage_name'].unique(),colors))
+    DB_LIN['Lineage_color'] = DB_LIN['Lineage_name'].map(colors)
+    print('✅ Databases successfully loaded\n')
+    return[DB_LIN,df_lin]
+               
+def mainLineage(snp_files,setup_params,lineage_list):
+    import pandas as pd
+    [QUAL,FRB,FREQ,COV,INPUT,OUTPUT,BIN] = setup_params
+    [DB_LIN,DF_LIN] = lineage_list 
+               
+    d_lin_name_number = dict(zip(DB_LIN['Lineage_number'],DB_LIN['Lineage_name']))
     
+    snp_dfs = dict()
+    for file in snp_files:
+        sample = file.replace('.snp','')
+        df = pd.read_csv(INPUT+'snp/'+file)
+        snp_dfs[sample] = df
+
+    # create a lineage matrix
+    lin_mat = pd.DataFrame()
+    for sample in snp_dfs:
+        df = snp_dfs[sample]
+        
+        # join lineage matrix and snp df
+        df = df.set_index('Reference Position')
+        df = df.join(DF_LIN,rsuffix='_lin')
+        df = df[df['Allele'] == df['Allele_lin']]
+        
+        # perform QC filtering
+        df = df[(df['Frequency'] >= FREQ) & (df['Coverage'] >= COV) & (df['Average quality'] >= QUAL)]
+        df = df[(df['Forward/reverse balance'] > FRB)]
+        
+        df = df.groupby('Lineage_number').mean('Fequency')
+        for i in df.index:
+            lin_mat.at[i,sample] = df.at[i,'Frequency']
+
+    # add lineage4.9 for samples that did not call any lineage
+    for sample in snp_dfs:
+        if sample not in lin_mat.columns:
+            lin_mat.at['lineage4.9',sample] = 100
+
+    df = lin_mat.reset_index()
+    df = df.rename(columns={'index':'Lineage Number'})
+    df['Lineage Name'] = df['Lineage Number'].map(d_lin_name_number)
+    df = pd.melt(df,id_vars=['Lineage Name','Lineage Number'])
+    df = df[df['value'].notna()]
+    df = df.rename(columns={'variable':'Sample','value':'Frequency'})
+    df = df[['Sample','Lineage Name','Lineage Number','Frequency']]
+    df.to_excel(OUTPUT+'lineage/lineages.xlsx')
+
+    ### BUILD FILE FOR LINEAGE ANNOTATION ON PHYLOGENETIC TREE ##
+
+    # create lineage dictionary from lineage matrix for iTOL tree       
+    lineage_tree = dict()
+    for col in lin_mat.columns:
+        df = lin_mat[[col]].dropna()
+        deep_lin = max(df.index.to_list(), key=len)
+        lineage_tree[col] = deep_lin
+
+    # create dictionary for colors
+    colors = dict(zip(DB_LIN['Lineage_number'],DB_LIN['Lineage_color']))
+
+    # build iTOL file for lineage
+    flineage = open(OUTPUT+'lineage/lineage_iTOL.txt','w')
+    flineage.write('DATASET_COLORSTRIP\nSEPARATOR TAB\nDATASET_LABEL\tLineage\nCOLOR\t#ff0000\n')
+    flineage.write('LEGEND_COLORS\t'+'\t'.join(colors.values())+'\n')
+    flineage.write('LEGEND_LABELS\t'+'\t'.join(colors.keys())+'\n')
+
+    flineage.write('\nDATA\n')
+    for sample in lineage_tree:
+        flineage.write(sample+'\t'+colors[lineage_tree[sample]]+'\t'+lineage_tree[sample])
+        flineage.write('\n')
+    flineage.close()
     
+    print('✅ Lineage assignment completed!\n')
+               
 ######### PHYLOGENETICS #########
 
 def setupPhylo(BIN):
@@ -97,6 +188,29 @@ def setupPhylo(BIN):
     DB_LIN['Lineage_color'] = DB_LIN['Lineage_name'].map(colors)
     print('✅ Databases successfully loaded\n')
     return[DB_DR,DB_REP_NE,DB_LIN]
+
+def snpDif(fasta):
+    from Bio import SeqIO
+    import numpy as np
+    import pandas as pd
+
+    # Read sequences
+    records = list(SeqIO.parse(fasta, "fasta"))
+    # Convert to strings
+    seqs = [str(r.seq) for r in records]
+    n = len(seqs)
+    # Initialize distance matrix
+    mat = np.zeros((n, n), dtype=int)
+
+    # Compute pairwise Hamming distances
+    for i in range(n):
+        for j in range(i+1, n):
+            diff = sum(a != b for a, b in zip(seqs[i], seqs[j]))
+            mat[i, j] = mat[j, i] = diff
+
+    # Save as CSV
+    df = pd.DataFrame(mat, index=[r.id for r in records], columns=[r.id for r in records])
+    return(df)
 
 def mainPhylo(snp_files,setup_params,phylo_list):
     import pandas as pd
@@ -164,6 +278,8 @@ def mainPhylo(snp_files,setup_params,phylo_list):
     # build tree
     buildTree(OUTPUT,msa_path)
     print('✅ Phylogenetic tree built!\n')
+    
+    return(fasta_path)
     
 
 def buildFasta(OUTPUT,dfs,ref):
