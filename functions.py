@@ -287,7 +287,7 @@ def buildFasta(OUTPUT,dfs,ref):
     fasta_path = OUTPUT+'phylo/snps.fasta'
     ffasta = open(fasta_path,'w')
     # create reference for tree root
-    ffasta.write('>MTB\n'+''.join(ref.values())+'\n')
+    ffasta.write('>NC000962.3\n'+''.join(ref.values())+'\n')
 
     # read in from filtered dataframes
     for sample in dfs:
@@ -426,7 +426,7 @@ def parseWHOForPromotors(df):
             pass
     return df
 
-def mainResistotyping(snp_files,setup_params,resisto_list):
+def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
     import pandas as pd
     from collections import defaultdict
     
@@ -460,10 +460,14 @@ def mainResistotyping(snp_files,setup_params,resisto_list):
     columns = pd.MultiIndex.from_tuples(columns)
     mainOut = pd.DataFrame(columns=columns)
     
+    dfResSamples = []
     for file in snp_files:
         indexes = []
         sample = file.replace('.snp','')
-        dfResSample = pd.DataFrame(columns=['Drug','Gene','Coding region change','Amino acid change','Level'])
+        
+        #stats_select = ['Coverage','Frequency']
+        stat_col_name = str(' // '.join(stats_select))
+        dfResSample = pd.DataFrame(columns=['Drug','Gene','Coding region change','Amino acid change','Level',stat_col_name])
         counter = 0
 
         # read in files and do QC 
@@ -495,7 +499,7 @@ def mainResistotyping(snp_files,setup_params,resisto_list):
         df['Sample'] = sample
         df = df[[df.columns[-1]] + df.columns[:-1].tolist()]
         
-         # create resistance dictionary
+        # create resistance dictionary
         
         # add in the grading here for the mutations based on genomic position (promotor regions)
         df2 = df[df['Reference Position'].isin(list(DR_WHO_promotors['genomic position']))]
@@ -504,16 +508,18 @@ def mainResistotyping(snp_files,setup_params,resisto_list):
             subdf = DR_WHO_promotors[DR_WHO_promotors['genomic position'] == position]
             for index2,row2 in subdf.iterrows():
                 if row['Allele'] == row2['Allele'] and row['Reference'] == row2['Reference']:
+                    stats = str(' // '.join([str(row[x]) for x in stats_select]))
                     dRes[sample][row2['drug']].append(row2['FINAL CONFIDENCE GRADING'])
                     dfResSample.loc[len(dfResSample)] = [row2['drug'],row2['gene'],str(row2['variant']),
-                                                         str(row2['variant']),row2['FINAL CONFIDENCE GRADING']]
+                                                         str(row2['variant']),row2['FINAL CONFIDENCE GRADING'],str(stats)]
             
         # check for ungraded mutations -  add ungraded for all genes associated with resistance
         for index,row in df.iterrows():
             if row['Name'] in dGene2Drug:
                 for drug in dGene2Drug[row['Name']]:
+                    stats = str(' // '.join([str(row[x]) for x in stats_select]))
                     dfResSample.loc[len(dfResSample)] = [drug,str(row['Name']),str(row['Coding region change']),
-                                                         str(row['Amino acid change']),'Ungraded']
+                                                         str(row['Amino acid change']),'Ungraded',str(stats)]
                     if 'Ungraded' not in dRes[sample][drug]:
                         dRes[sample][drug].append('Ungraded')
                         indexes.append(index)
@@ -526,14 +532,16 @@ def mainResistotyping(snp_files,setup_params,resisto_list):
                 for drug in dCTB[row['tmp1']]:
                     dRes[sample][drug].append(dCTB[row['tmp1']][drug])
                     indexes.append(index)
+                    stats = str(' // '.join([str(row[x]) for x in stats_select]))
                     dfResSample.loc[len(dfResSample)] = [drug,row['Name'],str(row['tmp1']),
-                                                         str(row['tmp2']),dCTB[row['tmp1']][drug]]
+                                                         str(row['tmp2']),dCTB[row['tmp1']][drug],str(stats)]
             if row['tmp2'] in dCTB:
                 for drug in dCTB[row['tmp2']]:
                     dRes[sample][drug].append(dCTB[row['tmp2']][drug])
                     indexes.append(index)
+                    stats = str(' // '.join([str(row[x]) for x in stats_select]))
                     dfResSample.loc[len(dfResSample)] = [drug,row['Name'],str(row['tmp1']),
-                                                         str(row['tmp2']),dCTB[row['tmp2']][drug]]
+                                                         str(row['tmp2']),dCTB[row['tmp2']][drug],str(stats)]
         df = df.drop(columns=['tmp1','tmp2'])
 
         # for WHO
@@ -544,14 +552,16 @@ def mainResistotyping(snp_files,setup_params,resisto_list):
                 for drug in dWHO[row['tmp1']]:
                     dRes[sample][drug].append(dWHO[row['tmp1']][drug])
                     indexes.append(index)
+                    stats = str(' // '.join([str(row[x]) for x in stats_select]))
                     dfResSample.loc[len(dfResSample)] = [drug,row['Name'],str(row['tmp1']),
-                                                         str(row['tmp2']),dWHO[row['tmp1']][drug]]
+                                                         str(row['tmp2']),dWHO[row['tmp1']][drug],str(stats)]
             if row['tmp2'] in dWHO:
                 for drug in dWHO[row['tmp2']]:
                     dRes[sample][drug].append(dWHO[row['tmp2']][drug])
                     indexes.append(index)
+                    stats = str(' // '.join([str(row[x]) for x in stats_select]))
                     dfResSample.loc[len(dfResSample)] = [drug,row['Name'],str(row['tmp1']),
-                                                         str(row['tmp2']),dWHO[row['tmp2']][drug]]
+                                                         str(row['tmp2']),dWHO[row['tmp2']][drug],str(stats)]
         df = df.drop(columns=['tmp1','tmp2'])
 
         # for WHO expert
@@ -561,8 +571,9 @@ def mainResistotyping(snp_files,setup_params,resisto_list):
             if row['Name'] in WHORules:
                 for drug in WHORules[row['Name']]:
                     dRes[sample][drug].append('Expert_R')
+                    stats = str(' // '.join([str(row[x]) for x in stats_select]))
                     dfResSample.loc[len(dfResSample)] = [drug,row['Name'],str(row['Coding region change']),
-                                                         str(row['Amino acid change']),'Expert_R']
+                                                         str(row['Amino acid change']),'Expert_R',str(stats)]
         if 'Rv0678' in list(df2['Name']):
             if 'mmpL5' in list(df2['Name']):
                 pass
@@ -571,25 +582,46 @@ def mainResistotyping(snp_files,setup_params,resisto_list):
                 dRes[sample]['Clofazimine'].append('Expert_R')
                 df3 = df2[df2['Name'] == 'Rv0678']
                 for index,row in df3.iterrows():
+                    stats = str(' // '.join([str(row[x]) for x in stats_select]))
                     dfResSample.loc[len(dfResSample)] = ['Bedaquiline',row['Name'],
                                                          str(row['Coding region change']),
                                                          str(row['Amino acid change']),
-                                                         'Expert_R']
+                                                         'Expert_R',str(stats)]
                     dfResSample.loc[len(dfResSample)] = ['Clofazimine',row['Name'],
                                                          str(row['Coding region change']),
                                                          str(row['Amino acid change']),
-                                                         'Expert_R']
+                                                         'Expert_R',str(stats)]
 
         df = df.loc[list(set(indexes))]
+        #dfResSample['Sample'] = sample
+        dfResSample.insert(0, 'Sample', sample)
         dfResSample.to_excel(OUTPUT+'resisto/sample_resisto/'+sample+'.xlsx')
+        dfResSamples.append(dfResSample)
         mainOut = resistotyping(dfResSample,mainOut,sample)
         
+    # build resistogram and write main output
     dfRes = buildResistogram(dRes)
     for i in dfRes.index:
         for c in dfRes.columns:
             mainOut.at[i,('Resistotype',c,'')] = dfRes.at[i,c]
     mainOut = mainOut.dropna(axis=1, how='all')
     mainOut.to_excel(OUTPUT+'resisto/mainResistotyping.xlsx')
+    # collapsed dataframe
+    df = mainOut.copy()
+    df.columns = ['_'.join(map(str, col)) for col in df.columns]
+    df.to_excel(OUTPUT+'resisto/mainResistotyping_collapse.xlsx')
+    
+    # write out a single file for dfResSamples
+    df = pd.concat(dfResSamples).reset_index().drop(columns=['index'])
+    df.to_csv(OUTPUT+'resisto/sampleResisto_combined.csv')
+
+    # write another where the stats column is expanded
+    expanded = df[stat_col_name].str.split("//", expand=True)
+    expanded.columns = stats_select
+    expanded.to_csv(OUTPUT+'resisto/expanded.csv')
+    df = df.drop(columns=stat_col_name).join(expanded)
+    df.to_csv(OUTPUT+'resisto/sampleResisto_combined_expanded.csv')
+    
     print('✅ Resistotyping complete and output files written\n')
     return(mainOut)
 
