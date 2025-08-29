@@ -618,7 +618,6 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
     # write another where the stats column is expanded
     expanded = df[stat_col_name].str.split("//", expand=True)
     expanded.columns = stats_select
-    expanded.to_csv(OUTPUT+'resisto/expanded.csv')
     df = df.drop(columns=stat_col_name).join(expanded)
     df.to_csv(OUTPUT+'resisto/sampleResisto_combined_expanded.csv')
     
