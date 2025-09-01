@@ -333,11 +333,11 @@ def buildTree(OUTPUT,path):
     tree_path = OUTPUT+'phylo/aligned.fasta'
 
     parts = []
-    parts.append('iqtree2')
+    parts.append('iqtree')
     parts.append('-nt')
     parts.append('AUTO')
     parts.append('-m')
-    parts.append('MFP')
+    parts.append('GTR+ASC+R4')
     parts.append('-quiet')
     parts.append('-s')
     parts.append(tree_path)
