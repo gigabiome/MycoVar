@@ -212,6 +212,32 @@ def snpDif(fasta):
     df = pd.DataFrame(mat, index=[r.id for r in records], columns=[r.id for r in records])
     return(df)
 
+def snpDifClusters(df,output,threshold=12):
+    import networkx as nx
+
+    df = df.drop(index=['NC000962.3'],columns=['NC000962.3'])
+    G = nx.Graph()
+    samples = df.index.tolist()
+    G.add_nodes_from(samples)
+
+    for i, s1 in enumerate(samples):
+        for j, s2 in enumerate(samples):
+            if i < j and df.loc[s1, s2] <= threshold:
+                G.add_edge(s1, s2)
+
+    clusters = list(nx.connected_components(G))
+    
+    counter = 0
+    fout = open(output+'phylo/snpClusters.tsv','w')
+    fout.write('Sample\tCluster\n')
+    for cluster in clusters:
+        counter += 1
+        cluster_name = 'cluster'+str(counter)
+        for sample in cluster:
+            fout.write(sample + '\t' + cluster_name + '\n')
+    fout.close()
+    return(clusters)
+
 def mainPhylo(snp_files,setup_params,phylo_list):
     import pandas as pd
     import numpy as np
@@ -333,7 +359,7 @@ def buildTree(OUTPUT,path):
     tree_path = OUTPUT+'phylo/aligned.fasta'
 
     parts = []
-    parts.append('iqtree')
+    parts.append('iqtree2')
     parts.append('-nt')
     parts.append('AUTO')
     parts.append('-m')
