@@ -22,7 +22,8 @@ def checkCSV(csv_files):
     false_csvs = []
     for file in csv_files:
         try:
-            with open(file, newline='', encoding="utf-8") as f:
+            #with open(file, newline='', encoding="utf-8") as f:
+            with open(file) as f:
                 reader = csv.reader(f)
                 for _ in range(5):  
                     next(reader, None)
@@ -43,7 +44,7 @@ def setupInput(input_dir):
         directory = Path(input_dir+sub_dir)
         files = [f for f in directory.iterdir() if f.is_file()]
         renameFiles(files,sub_dir)
-        false_csvs.append(checkCSV(files))
+        #false_csvs.append(checkCSV(files))
     
     false_csvs = list(chain.from_iterable(false_csvs))
     if len(false_csvs) > 0:
@@ -122,7 +123,8 @@ def mainLineage(snp_files,setup_params,lineage_list):
     for sample in snp_dfs:
         if sample not in lin_mat.columns:
             lin_mat.at['lineage4.9',sample] = 100
-
+    
+    # create long format file
     df = lin_mat.reset_index()
     df = df.rename(columns={'index':'Lineage Number'})
     df['Lineage Name'] = df['Lineage Number'].map(d_lin_name_number)
@@ -131,7 +133,11 @@ def mainLineage(snp_files,setup_params,lineage_list):
     df = df.rename(columns={'variable':'Sample','value':'Frequency'})
     df = df[['Sample','Lineage Name','Lineage Number','Frequency']]
     df.to_excel(OUTPUT+'lineage/lineages.xlsx')
-
+    
+    # create wide format file
+    lin_wide = buildWideLineage(df)
+    lin_wide.to_excel(OUTPUT+'lineage/lineages_wide.xlsx')
+    
     ### BUILD FILE FOR LINEAGE ANNOTATION ON PHYLOGENETIC TREE ##
 
     # create lineage dictionary from lineage matrix for iTOL tree       
@@ -157,6 +163,41 @@ def mainLineage(snp_files,setup_params,lineage_list):
     flineage.close()
     
     print('✅ Lineage assignment completed!\n')
+    
+def buildWideLineage(df):
+    from collections import defaultdict
+    import pandas as pd
+    
+    d_lin_number = defaultdict(lambda: defaultdict(list))
+    d_lin_freq = defaultdict(dict)
+    d_lin_name_to_number = dict(zip(df['Lineage Number'],df['Lineage Name']))
+    d_top_lineage = defaultdict(list)
+    
+    for index,row in df.iterrows():
+        top_lineage = row['Lineage Number'][0:8]
+        d_lin_number[row['Sample']][top_lineage].append(row['Lineage Number'])
+        d_lin_freq[row['Sample'],row['Lineage Number']] = row['Frequency']
+        
+    out = pd.DataFrame()
+    counter = 0
+    for sample in d_lin_number:
+        out.at[counter,'Sample'] = sample
+        d = d_lin_number[sample]
+        collapsed = "; ".join(f"{k}: {{{','.join(v)}}}" for k, v in d.items())
+        out.at[counter,'Full lineage'] = collapsed
+        top_lin_number = []
+        top_lin_name = []
+        top_lin_freq = []
+        for lin in d:
+            deepest = max(d[lin], key=len)
+            top_lin_number.append(deepest)
+            top_lin_name.append(d_lin_name_to_number[deepest])
+            top_lin_freq.append(str(d_lin_freq[sample,deepest]))
+        out.at[counter,'Final Lineage Number'] = str('; '.join(top_lin_number))
+        out.at[counter,'Final Lineage Name'] = str('; '.join(top_lin_name))
+        out.at[counter,'Final Lineage Frequency'] = str('; '.join(top_lin_freq))
+        counter += 1
+    return(out)
                
 ######### PHYLOGENETICS #########
 
@@ -386,7 +427,7 @@ def setupResisto(bin_path):
     from collections import defaultdict
     # parse databases
     DR_WHO = pd.read_excel(bin_path+'WHO-UCN-TB-2023.5-eng.xlsx',skiprows=2)
-    DR_WHO = DR_WHO[['drug','gene','mutation','variant','tier','genomic position',
+    DR_WHO = DR_WHO[['drug','gene','mutation','variant','tier','genomic position','Comment',
                     'Present_SOLO_SR','Present_SOLO_R','Present_SOLO_S','FINAL CONFIDENCE GRADING']]
     DR_CTB = pd.read_excel(bin_path+'CTB_Mutation_Catalogue.xlsx')
     DR_CTB.columns = ['CTB_variant','CTB_drug','CTB_FINAL_CONFIDENCE_GRADING']
@@ -458,12 +499,12 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
     
     WHORules = {'katG':   ['Isoniazid'],
                 'pncA':   ['Pyrazinamide'],
-                'ddn':    ['Pyrazinamide','Delamanid'],
-                'fbiA':   ['Pyrazinamide','Delamanid'],
-                'fbiB':   ['Pyrazinamide','Delamanid'],
-                'fbiC':   ['Pyrazinamide','Delamanid'],
-                'fgd1':   ['Pyrazinamide','Delamanid'],
-                'Rv2983': ['Pyrazinamide','Delamanid'],
+                'ddn':    ['Pretomanid','Delamanid'],
+                'fbiA':   ['Pretomanid','Delamanid'],
+                'fbiB':   ['Pretomanid','Delamanid'],
+                'fbiC':   ['Pretomanid','Delamanid'],
+                'fgd1':   ['Pretomanid','Delamanid'],
+                'Rv2983': ['Pretomanid','Delamanid'],
                 'gid':    ['Streptomycin'],
                 'ethA':   ['Prothionamide','Ethambutol'],
                 'tlyA':   ['Capreomycin'],
@@ -477,7 +518,7 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
     for drug in dDrug2Gene:
         columns.append( ('Resistotype',drug,'') )
 
-    queries = ['Coding region change','Amino acid change','Resistance level']
+    queries = ['Coding region change','Amino acid change','Resistance level','Frequency']
     for drug in dDrug2Gene:
         for gene in dDrug2Gene[drug]:
             for query in queries:
@@ -487,24 +528,26 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
     mainOut = pd.DataFrame(columns=columns)
     
     dfResSamples = []
+    print(' ----- Processing samples ----- \n')
     for file in snp_files:
         indexes = []
         sample = file.replace('.snp','')
         
         #stats_select = ['Coverage','Frequency']
         stat_col_name = str(' // '.join(stats_select))
-        dfResSample = pd.DataFrame(columns=['Drug','Gene','Coding region change','Amino acid change','Level',stat_col_name])
+        dfResSample = pd.DataFrame(columns=['Drug','Gene','Coding region change','Amino acid change','Level',
+                                            'Frequency',stat_col_name])
         counter = 0
 
         # read in files and do QC 
-        snp = pd.read_csv(INPUT+'snp/'+sample+'.snp') #[SNP_COLUMNS]
+        snp = pd.read_csv(INPUT+'snp/'+sample+'.snp')
         snp = snp[snp['Average quality'] >= QUAL]
         snp = snp[snp['Forward/reverse balance'] > FRB]
         snp = snp[snp['Frequency'] >= FREQ]
         snp = snp[snp['Coverage'] >= COV]
 
-        cov = pd.read_csv(INPUT+'cov/'+sample+'.cov') #[COV_COLUMNS]
-        stat = pd.read_csv(INPUT+'stat/'+sample+'.stat') #[STAT_COLUMNS]
+        cov = pd.read_csv(INPUT+'cov/'+sample+'.cov') 
+        stat = pd.read_csv(INPUT+'stat/'+sample+'.stat') 
 
         # split column to get gene
         df = snp.copy()
@@ -520,6 +563,9 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
         # merge with stat
         for col in stat.columns:
             df[col] = stat.at[0,col]
+            
+        # proportion of gene deletion
+        df['Gene deletion proportion'] = df['Zero coverage bases'] / df['Target region length']
 
         # add sample name as a column and move it to first column
         df['Sample'] = sample
@@ -537,7 +583,8 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
                     stats = str(' // '.join([str(row[x]) for x in stats_select]))
                     dRes[sample][row2['drug']].append(row2['FINAL CONFIDENCE GRADING'])
                     dfResSample.loc[len(dfResSample)] = [row2['drug'],row2['gene'],str(row2['variant']),
-                                                         str(row2['variant']),row2['FINAL CONFIDENCE GRADING'],str(stats)]
+                                                         str(row2['variant']),row2['FINAL CONFIDENCE GRADING'],
+                                                         row['Frequency'],str(stats)]
             
         # check for ungraded mutations -  add ungraded for all genes associated with resistance
         for index,row in df.iterrows():
@@ -545,12 +592,13 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
                 for drug in dGene2Drug[row['Name']]:
                     stats = str(' // '.join([str(row[x]) for x in stats_select]))
                     dfResSample.loc[len(dfResSample)] = [drug,str(row['Name']),str(row['Coding region change']),
-                                                         str(row['Amino acid change']),'Ungraded',str(stats)]
+                                                         str(row['Amino acid change']),'Ungraded',
+                                                         row['Frequency'],str(stats)]
                     if 'Ungraded' not in dRes[sample][drug]:
                         dRes[sample][drug].append('Ungraded')
                         indexes.append(index)
 
-        # for CTB
+        # for CTB catalogue
         df['tmp1'] = df['Name']+'_'+df['Coding region change'].str.split('c.').str[1] 
         df['tmp2'] = df['Name']+'_'+df['Amino acid change'].str.split('p.').str[1]
         for index,row in df.iterrows():
@@ -560,17 +608,19 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
                     indexes.append(index)
                     stats = str(' // '.join([str(row[x]) for x in stats_select]))
                     dfResSample.loc[len(dfResSample)] = [drug,row['Name'],str(row['tmp1']),
-                                                         str(row['tmp2']),dCTB[row['tmp1']][drug],str(stats)]
+                                                         str(row['tmp2']),dCTB[row['tmp1']][drug],
+                                                         row['Frequency'],str(stats)]
             if row['tmp2'] in dCTB:
                 for drug in dCTB[row['tmp2']]:
                     dRes[sample][drug].append(dCTB[row['tmp2']][drug])
                     indexes.append(index)
                     stats = str(' // '.join([str(row[x]) for x in stats_select]))
                     dfResSample.loc[len(dfResSample)] = [drug,row['Name'],str(row['tmp1']),
-                                                         str(row['tmp2']),dCTB[row['tmp2']][drug],str(stats)]
+                                                         str(row['tmp2']),dCTB[row['tmp2']][drug],
+                                                         row['Frequency'],str(stats)]
         df = df.drop(columns=['tmp1','tmp2'])
 
-        # for WHO
+        # for WHO catalogue
         df['tmp1'] = df['Name']+'_'+df['Coding region change'].str.split(':').str[1] 
         df['tmp2'] = df['Name']+'_'+df['Amino acid change'].str.split(':').str[1]
         for index,row in df.iterrows():
@@ -580,17 +630,38 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
                     indexes.append(index)
                     stats = str(' // '.join([str(row[x]) for x in stats_select]))
                     dfResSample.loc[len(dfResSample)] = [drug,row['Name'],str(row['tmp1']),
-                                                         str(row['tmp2']),dWHO[row['tmp1']][drug],str(stats)]
+                                                         str(row['tmp2']),dWHO[row['tmp1']][drug],
+                                                         row['Frequency'],str(stats)]
             if row['tmp2'] in dWHO:
                 for drug in dWHO[row['tmp2']]:
                     dRes[sample][drug].append(dWHO[row['tmp2']][drug])
                     indexes.append(index)
                     stats = str(' // '.join([str(row[x]) for x in stats_select]))
                     dfResSample.loc[len(dfResSample)] = [drug,row['Name'],str(row['tmp1']),
-                                                         str(row['tmp2']),dWHO[row['tmp2']][drug],str(stats)]
+                                                         str(row['tmp2']),dWHO[row['tmp2']][drug],
+                                                         row['Frequency'],str(stats)]
         df = df.drop(columns=['tmp1','tmp2'])
 
-        # for WHO expert
+        # for WHO expert rule
+        
+        # non-silent mutations in rpoB
+        df2 = df[df['Name'] == 'rpoB']
+        df2 = df2[ (df2['Reference Position'] >= 761078) &  (df2['Reference Position'] <= 761163) ]
+        for index,row in df2.iterrows():
+            
+        
+        # check calculated gene deletion proportion
+        df2 = df[df['Gene deletion proportion'] == 1]
+        for index,row in df2.iterrows():
+            if row['Name'] in WHORules:
+                for drug in WHORules[row['Name']]:
+                    dRes[sample][drug].append('Expert_R')
+                    stats = str(' // '.join([str(row[x]) for x in stats_select]))
+                    dfResSample.loc[len(dfResSample)] = [drug,row['Name'],str(row['Coding region change']),
+                                                         str(row['Amino acid change']),'Expert_R',
+                                                         row['Frequency'],str(stats)]
+        
+        # for other indels in snp calling
         df2 = df[(df['Type'].isin(['Insertion','Deletion'])) | 
                  (df['Amino acid change'].str.contains('*',na=False,regex=False))]
         for index,row in df2.iterrows():
@@ -599,7 +670,8 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
                     dRes[sample][drug].append('Expert_R')
                     stats = str(' // '.join([str(row[x]) for x in stats_select]))
                     dfResSample.loc[len(dfResSample)] = [drug,row['Name'],str(row['Coding region change']),
-                                                         str(row['Amino acid change']),'Expert_R',str(stats)]
+                                                         str(row['Amino acid change']),'Expert_R',
+                                                         row['Frequency'],str(stats)]
         if 'Rv0678' in list(df2['Name']):
             if 'mmpL5' in list(df2['Name']):
                 pass
@@ -612,27 +684,32 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
                     dfResSample.loc[len(dfResSample)] = ['Bedaquiline',row['Name'],
                                                          str(row['Coding region change']),
                                                          str(row['Amino acid change']),
-                                                         'Expert_R',str(stats)]
+                                                         'Expert_R',row['Frequency'],str(stats)]
                     dfResSample.loc[len(dfResSample)] = ['Clofazimine',row['Name'],
                                                          str(row['Coding region change']),
                                                          str(row['Amino acid change']),
-                                                         'Expert_R',str(stats)]
+                                                         'Expert_R',row['Frequency'],str(stats)]
 
         df = df.loc[list(set(indexes))]
         #dfResSample['Sample'] = sample
         dfResSample.insert(0, 'Sample', sample)
+        dfResSample = addWHOColumns(dfResSample,DR_WHO)
         dfResSample.to_excel(OUTPUT+'resisto/sample_resisto/'+sample+'.xlsx')
         dfResSamples.append(dfResSample)
         mainOut = resistotyping(dfResSample,mainOut,sample)
         
     # build resistogram and write main output
+    print(' ----- Building resitotyping output ----- \n')
     dfRes = buildResistogram(dRes)
+    clusterOrder = resistogramClustering(dfRes)
     for i in dfRes.index:
         for c in dfRes.columns:
             mainOut.at[i,('Resistotype',c,'')] = dfRes.at[i,c]
     mainOut = mainOut.dropna(axis=1, how='all')
+    mainOut = mainOut.loc[clusterOrder]
     mainOut.to_excel(OUTPUT+'resisto/mainResistotyping.xlsx')
-    # collapsed dataframe
+    
+    # collapsed mainOut
     df = mainOut.copy()
     df.columns = ['_'.join(map(str, col)) for col in df.columns]
     df.to_excel(OUTPUT+'resisto/mainResistotyping_collapse.xlsx')
@@ -649,6 +726,38 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
     
     print('✅ Resistotyping complete and output files written\n')
     return(mainOut)
+
+def addWHOColumns(df,db):
+    import pandas as pd
+    for index,row in df.iterrows():
+        if row['Coding region change'] in db['variant'].to_list():
+            tier = db[ (db['drug'] == row['Drug']) & 
+                       (db['variant'] == row['Coding region change'])]['tier'].iloc[0]
+            comm = db[ (db['drug'] == row['Drug']) & 
+                       (db['variant'] == row['Coding region change'])]['Comment'].iloc[0]
+            df.at[index,'Tier'] = tier
+            df.at[index,'Comment'] = comm
+        if row['Amino acid change'] in db['variant'].to_list():
+            tier = db[ (db['drug'] == row['Drug']) & 
+                       (db['variant'] == row['Amino acid change'])]['tier'].iloc[0]
+            comm = db[ (db['drug'] == row['Drug']) & 
+                       (db['variant'] == row['Amino acid change'])]['Comment'].iloc[0]
+            df.at[index,'Tier'] = tier
+            df.at[index,'Comment'] = comm
+    return(df)
+
+def resistogramClustering(df):
+    import seaborn as sns
+    import pandas as pd
+    from sklearn.preprocessing import OrdinalEncoder
+    from scipy.cluster.hierarchy import linkage, leaves_list
+    
+    encoder = OrdinalEncoder()
+    X = encoder.fit_transform(df)
+    Z = linkage(X, method="ward")
+    row_order = leaves_list(Z)
+    cluster_order = df.index[row_order].tolist()
+    return(cluster_order)
 
 def buildResistogram(d):
     import pandas as pd
@@ -696,6 +805,7 @@ def resistotyping(df,outdf,sample):
             #print(df2)
             nucl_change = str(' / '.join(df2['Coding region change']))
             aa_change = str(' / '.join(df2['Amino acid change']))
+            frequency = str(' / '.join(df2['Frequency'].astype(str)))
     
             if len(df2.index) > 0:
                 level = list(set(df2['Level']))[0]
@@ -703,10 +813,12 @@ def resistotyping(df,outdf,sample):
                 if level == 'Ungraded': 
                     outdf.at[sample,(drug,gene,'Coding region change')] = nucl_change
                     outdf.at[sample,(drug,gene,'Amino acid change')] = aa_change
+                    outdf.at[sample,(drug,gene,'Frequency')] = frequency
                     outdf.at[sample,(drug,gene,'Resistance level')] = level
                 else:
                     outdf.at[sample,(drug,gene,'Coding region change')] = nucl_change
                     outdf.at[sample,(drug,gene,'Amino acid change')] = aa_change
+                    outdf.at[sample,(drug,gene,'Frequency')] = frequency
                     outdf.at[sample,(drug,gene,'Resistance level')] = level
             
     return(outdf)
