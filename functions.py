@@ -645,11 +645,10 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
         # for WHO expert rule
         
         # non-silent mutations in rpoB
-        df2 = df[df['Name'] == 'rpoB']
-        df2 = df2[ (df2['Reference Position'] >= 761078) &  (df2['Reference Position'] <= 761163) ]
-        for index,row in df2.iterrows():
+        #df2 = df[df['Name'] == 'rpoB']
+        #df2 = df2[ (df2['Reference Position'] >= 761078) &  (df2['Reference Position'] <= 761163) ]
+        #for index,row in df2.iterrows():
             
-        
         # check calculated gene deletion proportion
         df2 = df[df['Gene deletion proportion'] == 1]
         for index,row in df2.iterrows():
