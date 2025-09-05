@@ -635,7 +635,7 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
         # add in the grading here for the mutations based on genomic position (promotor regions)
         df2 = df[df['Reference Position'].isin(list(DR_WHO_promotors['genomic position']))]
         for index,row in df2.iterrows():
-            position = row['Reference Position']
+            position = int(row['Reference Position'])
             subdf = DR_WHO_promotors[DR_WHO_promotors['genomic position'] == position]
             for index2,row2 in subdf.iterrows():
                 if row['Allele'] == row2['Allele'] and row['Reference'] == row2['Reference']:
