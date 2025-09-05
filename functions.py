@@ -13,7 +13,7 @@ def renameFiles(files,filetype):
         dir_name = os.path.dirname(old_path)
         base_name = os.path.basename(old_path)
         if os.path.splitext(base_name)[1] == '.csv':
-            new_base = base_name.split('_')[0] + '.'+filetype
+            new_base = base_name.split(' ')[0] + '.'+filetype
             new_path = os.path.join(dir_name, new_base)
             os.rename(old_path, new_path)
             
@@ -64,6 +64,7 @@ def setupOutput(output_dir,analysis_type):
 
         if analysis_type == 'resisto':
             os.makedirs(path+'/sample_resisto/')
+            os.makedirs(path+'/iTol/')
             return(print('✅ Resisto output directories created\n'))
         elif analysis_type == 'phylo':
             os.makedirs(path+'/iTol/')
@@ -73,20 +74,42 @@ def setupOutput(output_dir,analysis_type):
     else:
         return(print("❌ analysis should be either resisto, phylo or lineage"))
                
-               
-############ LINEAGE ############ 
+########################################################################################################               
+####################################        LINEAGE         ############################################
+########################################################################################################
 
 def setupLineage(BIN):
     import pandas as pd
     import plotly.express as px
     df_lin = pd.read_csv(BIN+'lineages.bed',sep='\t',index_col=1)
     DB_LIN = df_lin.drop(columns=['Chromosome','End'])
-    colors = px.colors.qualitative.Dark24
-    colors.append(px.colors.qualitative.Light24[1])
-    colors = dict(zip(DB_LIN['Lineage_name'].unique(),colors))
-    DB_LIN['Lineage_color'] = DB_LIN['Lineage_name'].map(colors)
+    #colors = px.colors.qualitative.Dark24
+    #colors.append(px.colors.qualitative.Light24[1])
+    #colors = dict(zip(DB_LIN['Lineage_name'].unique(),colors))
+    #DB_LIN['Lineage_color'] = DB_LIN['Lineage_name'].map(colors)
     print('✅ Databases successfully loaded\n')
     return[DB_LIN,df_lin]
+
+def createLineageColors(db):
+    import plotly.express as px
+
+    colors = px.colors.qualitative.Light24
+
+    # set colors of lineage names
+    lin_name_colors = dict(zip(db['Lineage_name'].unique(),colors))
+
+    # set colors of lineage numbers
+    lin_number_colors = []
+    for i in db['Lineage_number'].unique():
+        if i == 'M.canetti':
+            lin_number_colors.append(i)
+        else:
+            i = i.split('.')[0]
+            lin_number_colors.append(i)
+
+    lin_number_colors = list(set(lin_number_colors))
+    lin_number_colors = dict(zip(lin_number_colors,colors))
+    return[lin_name_colors,lin_number_colors]
                
 def mainLineage(snp_files,setup_params,lineage_list):
     import pandas as pd
@@ -94,6 +117,7 @@ def mainLineage(snp_files,setup_params,lineage_list):
     [DB_LIN,DF_LIN] = lineage_list 
                
     d_lin_name_number = dict(zip(DB_LIN['Lineage_number'],DB_LIN['Lineage_name']))
+    lin_name_colors,lin_number_colors = createLineageColors(DB_LIN)
     
     snp_dfs = dict()
     for file in snp_files:
@@ -138,31 +162,51 @@ def mainLineage(snp_files,setup_params,lineage_list):
     lin_wide = buildWideLineage(df)
     lin_wide.to_excel(OUTPUT+'lineage/lineages_wide.xlsx')
     
-    ### BUILD FILE FOR LINEAGE ANNOTATION ON PHYLOGENETIC TREE ##
-
-    # create lineage dictionary from lineage matrix for iTOL tree       
-    lineage_tree = dict()
-    for col in lin_mat.columns:
-        df = lin_mat[[col]].dropna()
-        deep_lin = max(df.index.to_list(), key=len)
-        lineage_tree[col] = deep_lin
-
-    # create dictionary for colors
-    colors = dict(zip(DB_LIN['Lineage_number'],DB_LIN['Lineage_color']))
-
-    # build iTOL file for lineage
-    flineage = open(OUTPUT+'lineage/lineage_iTOL.txt','w')
-    flineage.write('DATASET_COLORSTRIP\nSEPARATOR TAB\nDATASET_LABEL\tLineage\nCOLOR\t#ff0000\n')
-    flineage.write('LEGEND_COLORS\t'+'\t'.join(colors.values())+'\n')
-    flineage.write('LEGEND_LABELS\t'+'\t'.join(colors.keys())+'\n')
-
-    flineage.write('\nDATA\n')
-    for sample in lineage_tree:
-        flineage.write(sample+'\t'+colors[lineage_tree[sample]]+'\t'+lineage_tree[sample])
-        flineage.write('\n')
-    flineage.close()
+    ### build iTol files ##
     
-    print('✅ Lineage assignment completed!\n')
+    buildLineageItol(OUTPUT,lin_wide,lin_name_colors,lin_number_colors)
+    
+    return(lin_wide)
+
+def buildLineageItol(OUTPUT,df,lin_name_colors,lin_number_colors):
+    
+    flin_number = open(OUTPUT+'lineage/iTol_lin_number.txt','w')
+    flin_number.write('DATASET_COLORSTRIP\nSEPARATOR TAB\nDATASET_LABEL\tLineageNumber\nCOLOR\t#ff0000\n')
+    flin_number.write('\nDATA\n')
+
+    flin_name = open(OUTPUT+'lineage/iTol_lin_name.txt','w')
+    flin_name.write('DATASET_COLORSTRIP\nSEPARATOR TAB\nDATASET_LABEL\tLineageName\nCOLOR\t#ff0000\n')
+    flin_name.write('\nDATA\n')
+
+    for index,row in df.iterrows():
+
+        flin_number.write(row['Sample'] + '\t')
+        flin_name.write(row['Sample'] + '\t')
+
+        if len(row['Final Lineage Number'].split(';')) > 1:
+            flin_number.write('Mixed lineage\t#000000')
+            flin_name.write('Mixed lineage\t#000000')
+        else:    
+            if row['Final Lineage Number'] == 'M.canetti':
+                flin_number.write(lin_number_colors[row['Final Lineage Number']] + '\t')
+                flin_number.write(row['Final Lineage Number'])
+
+                flin_name.write(lin_name_colors[row['Final Lineage Name']] + '\t')
+                flin_name.write(row['Final Lineage Name'])
+
+            else:
+                flin_number.write(lin_number_colors[row['Final Lineage Number'].split('.')[0]] + '\t')
+                flin_number.write(row['Final Lineage Number'].split('.')[0])
+
+                flin_name.write(lin_name_colors[row['Final Lineage Name']] + '\t')
+                flin_name.write(row['Final Lineage Name'])
+
+        flin_number.write('\n')
+        flin_name.write('\n')
+
+    flin_number.close()
+    flin_name.close()  
+    
     
 def buildWideLineage(df):
     from collections import defaultdict
@@ -174,7 +218,7 @@ def buildWideLineage(df):
     d_top_lineage = defaultdict(list)
     
     for index,row in df.iterrows():
-        top_lineage = row['Lineage Number'][0:8]
+        top_lineage = row['Lineage Number'].split('.')[0]
         d_lin_number[row['Sample']][top_lineage].append(row['Lineage Number'])
         d_lin_freq[row['Sample'],row['Lineage Number']] = row['Frequency']
         
@@ -199,7 +243,9 @@ def buildWideLineage(df):
         counter += 1
     return(out)
                
-######### PHYLOGENETICS #########
+########################################################################################################               
+####################################        PHYLOGENETICS         ######################################
+########################################################################################################
 
 def setupPhylo(BIN):
     import pandas as pd
@@ -400,7 +446,7 @@ def buildTree(OUTPUT,path):
     tree_path = OUTPUT+'phylo/aligned.fasta'
 
     parts = []
-    parts.append('iqtree')
+    parts.append('iqtree2')
     parts.append('-nt')
     parts.append('AUTO')
     parts.append('-m')
@@ -420,7 +466,10 @@ def buildTree(OUTPUT,path):
         print("❌ Could not run iqtree: check fasta files")
         sys.exit(1)
 
-######### RESISTOTYPING #########
+########################################################################################################               
+####################################        RESISTOTYPING         ######################################
+########################################################################################################
+
 
 def setupResisto(bin_path):
     import pandas as pd
@@ -429,6 +478,8 @@ def setupResisto(bin_path):
     DR_WHO = pd.read_excel(bin_path+'WHO-UCN-TB-2023.5-eng.xlsx',skiprows=2)
     DR_WHO = DR_WHO[['drug','gene','mutation','variant','tier','genomic position','Comment',
                     'Present_SOLO_SR','Present_SOLO_R','Present_SOLO_S','FINAL CONFIDENCE GRADING']]
+    #DR_WHO['variant'] = DR_WHO['variant'].replace('_n.','_c.')
+    #DR_WHO['mutation'] = DR_WHO['mutation'].replace('n.','c.')
     DR_CTB = pd.read_excel(bin_path+'CTB_Mutation_Catalogue.xlsx')
     DR_CTB.columns = ['CTB_variant','CTB_drug','CTB_FINAL_CONFIDENCE_GRADING']
     
@@ -514,11 +565,19 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
     DR_WHO,DR_CTB,DR_GENES,dCTB,dWHO,dGene2Drug,dDrug2Gene,DR_WHO_promotors = resisto_list
     
     dRes = defaultdict(lambda: defaultdict(list))
+    
+    # get all drugs to add to main and order columns
+    drugs = list(set(list(DR_WHO['drug']) + list(DR_CTB['CTB_drug'])))
+    drugs.append('Pretomanid')
+    priority_cols = ['Rifampicin','Isoniazid','Levofloxacin','Moxifloxacin','Bedaquiline','Linezolid',
+                     'Pretomanid','Delamanid']
+    remaining_cols = sorted([c for c in drugs if c not in priority_cols])
+    drugs = priority_cols + remaining_cols
     columns = []
-    for drug in dDrug2Gene:
+    for drug in drugs:
         columns.append( ('Resistotype',drug,'') )
 
-    queries = ['Coding region change','Amino acid change','Resistance level','Frequency']
+    queries = ['Coding region change','Amino acid change','Resistance Grading','Frequency','Comment']
     for drug in dDrug2Gene:
         for gene in dDrug2Gene[drug]:
             for query in queries:
@@ -535,7 +594,7 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
         
         #stats_select = ['Coverage','Frequency']
         stat_col_name = str(' // '.join(stats_select))
-        dfResSample = pd.DataFrame(columns=['Drug','Gene','Coding region change','Amino acid change','Level',
+        dfResSample = pd.DataFrame(columns=['Drug','Gene','Coding region change','Amino acid change','Resistance Grading',
                                             'Frequency',stat_col_name])
         counter = 0
 
@@ -645,9 +704,16 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
         # for WHO expert rule
         
         # non-silent mutations in rpoB
-        #df2 = df[df['Name'] == 'rpoB']
-        #df2 = df2[ (df2['Reference Position'] >= 761078) &  (df2['Reference Position'] <= 761163) ]
-        #for index,row in df2.iterrows():
+        df2 = df[df['Name'] == 'rpoB']
+        df2 = df2[ (df2['Reference Position'] >= 761078) &  (df2['Reference Position'] <= 761163) ]
+        for index,row in df2.iterrows():
+            if row['Amino acid change']:
+                dRes[sample]['Rifampicin'].append('Expert_R')
+                stats = str(' // '.join([str(row[x]) for x in stats_select]))
+                dfResSample.loc[len(dfResSample)] = ['Rifampicin',row['Name'],str(row['Coding region change']),
+                                                     str(row['Amino acid change']),'Expert_R',
+                                                     row['Frequency'],str(stats)]
+                
             
         # check calculated gene deletion proportion
         df2 = df[df['Gene deletion proportion'] == 1]
@@ -699,8 +765,17 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
         
     # build resistogram and write main output
     print(' ----- Building resitotyping output ----- \n')
-    dfRes = buildResistogram(dRes)
+    drugs = list(set(list(DR_WHO['drug']) + list(DR_CTB['CTB_drug'])))
+    drugs.append('Pretomanid')
+    dfRes = buildResistogram(dRes,drugs)
+    dfRes['Pretomanid'] = dfRes['Delamanid']
+    
+    # create iTol annotations
+    buildResistoITol(dfRes,OUTPUT)
+    
+    # cluster samples
     clusterOrder = resistogramClustering(dfRes)
+    
     for i in dfRes.index:
         for c in dfRes.columns:
             mainOut.at[i,('Resistotype',c,'')] = dfRes.at[i,c]
@@ -724,7 +799,30 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
     df.to_csv(OUTPUT+'resisto/sampleResisto_combined_expanded.csv')
     
     print('✅ Resistotyping complete and output files written\n')
-    return(mainOut)
+    return(dfRes)
+
+def buildResistoITol(df,OUTPUT):
+    d = {'AWR':'#FF0000',
+         'AWR-I':'#FF0000',
+         'AWRI-ER':'#FF0000',
+         'US':'#808080',
+         'NAWR':'#008000',
+         'NAWR-I':'#008000',
+         'CTB-R':'#FF0000',
+         'UNGR':'#0000FF',
+         'WT':'#FFFFFF'}
+
+    for drug in df.columns:
+        fout = open(OUTPUT+'/resisto/iTol/'+drug+'.txt','w')
+        fout.write('DATASET_COLORSTRIP\nSEPARATOR TAB\nDATASET_LABEL\t'+drug+'\nCOLOR\t#ff0000\n')
+        fout.write('\nDATA\n')
+        df2 = df[[drug]]
+        for index,row in df2.iterrows():
+            fout.write(index+'\t')
+            fout.write(d[row[drug]] + '\t')
+            fout.write(row[drug])
+            fout.write('\n')
+        fout.close()
 
 def addWHOColumns(df,db):
     import pandas as pd
@@ -758,9 +856,9 @@ def resistogramClustering(df):
     cluster_order = df.index[row_order].tolist()
     return(cluster_order)
 
-def buildResistogram(d):
+def buildResistogram(d,drugs):
     import pandas as pd
-    dfRes = pd.DataFrame()
+    dfRes = pd.DataFrame(columns=drugs)
     for sample in d:
         for drug in d[sample]:
             if '1) Assoc w R' in d[sample][drug]:
@@ -784,6 +882,7 @@ def buildResistogram(d):
 
 def resistotyping(df,outdf,sample):
     import pandas as pd
+    import numpy as np
     priority = ["1) Assoc w R",
                 "2) Assoc w R - Interim",
                 "Expert_R",
@@ -797,28 +896,34 @@ def resistotyping(df,outdf,sample):
         for gene in df['Gene'].unique():
             df2 = df[(df['Drug'] == drug) & (df['Gene'] == gene)]
             for level in priority:
-                if (df2['Level'] == level).any():
-                    df2 = df2[df2['Level'] == level]
+                if (df2['Resistance Grading'] == level).any():
+                    df2 = df2[df2['Resistance Grading'] == level]
                     break
                 
             #print(df2)
             nucl_change = str(' / '.join(df2['Coding region change']))
             aa_change = str(' / '.join(df2['Amino acid change']))
             frequency = str(' / '.join(df2['Frequency'].astype(str)))
+            if df2["Comment"].isna().all():
+                comment = np.nan
+            else:
+                comment = " / ".join(df2["Comment"].dropna().astype(str))
     
             if len(df2.index) > 0:
-                level = list(set(df2['Level']))[0]
+                level = list(set(df2['Resistance Grading']))[0]
                 # Ungraded will have several mutations (can remove if don't want all the mutations in there)
                 if level == 'Ungraded': 
                     outdf.at[sample,(drug,gene,'Coding region change')] = nucl_change
                     outdf.at[sample,(drug,gene,'Amino acid change')] = aa_change
                     outdf.at[sample,(drug,gene,'Frequency')] = frequency
-                    outdf.at[sample,(drug,gene,'Resistance level')] = level
+                    outdf.at[sample,(drug,gene,'Resistance Grading')] = level
+                    outdf.at[sample,(drug,gene,'Comment')] = comment
                 else:
                     outdf.at[sample,(drug,gene,'Coding region change')] = nucl_change
                     outdf.at[sample,(drug,gene,'Amino acid change')] = aa_change
                     outdf.at[sample,(drug,gene,'Frequency')] = frequency
-                    outdf.at[sample,(drug,gene,'Resistance level')] = level
+                    outdf.at[sample,(drug,gene,'Resistance Grading')] = level
+                    outdf.at[sample,(drug,gene,'Comment')] = comment
             
     return(outdf)
 
