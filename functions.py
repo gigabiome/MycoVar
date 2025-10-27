@@ -122,12 +122,14 @@ def mainLineage(snp_files,setup_params,lineage_list):
     snp_dfs = dict()
     for file in snp_files:
         sample = file.replace('.snp','')
+        #print(sample)
         df = pd.read_csv(INPUT+'snp/'+file)
         snp_dfs[sample] = df
 
     # create a lineage matrix
     lin_mat = pd.DataFrame()
     for sample in snp_dfs:
+        #print(sample)
         df = snp_dfs[sample]
         
         # join lineage matrix and snp df
@@ -589,6 +591,7 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
     dfResSamples = []
     print(' ----- Processing samples ----- \n')
     for file in snp_files:
+        #print(file)
         indexes = []
         sample = file.replace('.snp','')
         
@@ -612,17 +615,19 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
         df = snp.copy()
         df = df[df['Overlapping annotations'].notna()]
         df = df[df['Overlapping annotations'].str.contains('Gene')]
-        df['Gene'] = df['Overlapping annotations'].str.split('Gene: ').str[1].str.split().str[0]
-
+        df['Gene'] = df['Overlapping annotations'].str.split('Gene: ').str[1].str.split().str[0].str.replace(',','')
+        
+        #return(df)
         # get only DR genes
         df = df[df['Gene'].isin(DR_GENES)]
+        
         # merge snp and cov
         df = pd.merge(df, cov, left_on='Gene', right_on='Name')
         df = df.drop(columns=['Gene'])
         # merge with stat
         for col in stat.columns:
             df[col] = stat.at[0,col]
-            
+        
         # proportion of gene deletion
         df['Gene deletion proportion'] = df['Zero coverage bases'] / df['Target region length']
 
@@ -634,7 +639,9 @@ def mainResistotyping(snp_files,setup_params,resisto_list,stats_select):
         
         # add in the grading here for the mutations based on genomic position (promotor regions)
         df2 = df[df['Reference Position'].isin(list(DR_WHO_promotors['genomic position']))]
+        
         for index,row in df2.iterrows():
+            #print('yes')
             position = int(row['Reference Position'])
             subdf = DR_WHO_promotors[DR_WHO_promotors['genomic position'] == position]
             for index2,row2 in subdf.iterrows():
@@ -841,6 +848,11 @@ def addWHOColumns(df,db):
                        (db['variant'] == row['Amino acid change'])]['Comment'].iloc[0]
             df.at[index,'Tier'] = tier
             df.at[index,'Comment'] = comm
+    # add columns if there is no tier or comment column        
+    if 'Tier' not in df.columns:
+        df['Tier'] = None 
+    if 'Comment' not in df.columns:
+        df['Comment'] = None 
     return(df)
 
 def resistogramClustering(df):
@@ -900,7 +912,10 @@ def resistotyping(df,outdf,sample):
                     df2 = df2[df2['Resistance Grading'] == level]
                     break
                 
+            #print(drug)
             #print(df2)
+            #print('\n\n')
+            
             nucl_change = str(' / '.join(df2['Coding region change']))
             aa_change = str(' / '.join(df2['Amino acid change']))
             frequency = str(' / '.join(df2['Frequency'].astype(str)))
